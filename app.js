@@ -9,22 +9,20 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Initialiser Supabase côté serveur
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-// Stocker les clients connectés
+// Stocker les clients connectés et leurs usernames
 let clients = [];
 
-// Fonction pour notifier les clients d'un nouvel événement
 const notifyClients = (message) => {
-    clients.forEach(res => res.write(`data: ${JSON.stringify(message)}\n\n`));
+    clients.forEach(client => client.res.write(`data: ${JSON.stringify(message)}\n\n`));
 };
 
-// 🔴 Écoute des nouveaux messages en temps réel depuis Supabase
+// 🔴 Écoute des nouveaux messages Supabase
 supabase.channel('realtime:messages')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
         console.log('🔔 Nouveau message:', payload.new);
-        notifyClients(payload.new);  // Envoie aux clients connectés
+        notifyClients(payload.new);
     })
     .subscribe();
 
@@ -62,16 +60,25 @@ app.get('/get-messages', async (req, res) => {
     }
 });
 
-// 🔥 Endpoint SSE (Server-Sent Events) pour envoyer les mises à jour en temps réel au frontend
+// 🔥 SSE : Gérer les connexions et les déconnexions en temps réel
 app.get('/events', (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    clients.push(res);
+    // Récupérer le username depuis la requête (ex : /events?username=John)
+    const username = req.query.username || 'Utilisateur inconnu';
+    
+    // Ajouter l'utilisateur à la liste des clients connectés
+    clients.push({ res, username });
+    
+    // Notifier les autres que l'utilisateur a rejoint
+    notifyClients({ username: 'System', message: `${username} a rejoint le chat.` });
 
+    // Gérer la déconnexion de l'utilisateur
     req.on('close', () => {
-        clients = clients.filter(client => client !== res);
+        clients = clients.filter(client => client.res !== res);
+        notifyClients({ username: 'System', message: `${username} a quitté le chat.` });
     });
 });
 
