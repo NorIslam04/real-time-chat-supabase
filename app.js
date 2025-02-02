@@ -18,10 +18,9 @@ const notifyClients = (message) => {
     clients.forEach(client => client.res.write(`data: ${JSON.stringify(message)}\n\n`));
 };
 
-// 🔴 Écoute des nouveaux messages Supabase
+// Écoute des nouveaux messages Supabase
 supabase.channel('realtime:messages')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
-        console.log('🔔 Nouveau message:', payload.new);
         notifyClients(payload.new);
     })
     .subscribe();
@@ -39,7 +38,6 @@ app.post('/send-message', async (req, res) => {
         if (error) throw error;
         res.status(200).json(data);
     } catch (error) {
-        console.error('❌ Erreur lors de l\'envoi du message:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -55,12 +53,11 @@ app.get('/get-messages', async (req, res) => {
         if (error) throw error;
         res.status(200).json(data);
     } catch (error) {
-        console.error('❌ Erreur lors de la récupération des messages:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// 🔥 SSE : Gérer les connexions et les déconnexions en temps réel
+// SSE : Gérer les connexions et les déconnexions en temps réel
 app.get('/events', (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
